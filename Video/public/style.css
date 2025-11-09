@@ -1,0 +1,14 @@
+body {
+  text-align: center;
+  font-family: sans-serif;
+}
+.video-container {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+video {
+  width: 300px;
+  border-radius: 10px;
+  border: 2px solid #ccc;
+}
