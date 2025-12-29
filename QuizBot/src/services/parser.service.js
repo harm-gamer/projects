@@ -1,24 +1,54 @@
 module.exports = (content) => {
-  const blocks = content.split("\n\n");
-  let questions = [];
+  const blocks = content
+    .split(/\n\s*\n/)        // split by empty lines safely
+    .map(b => b.trim())
+    .filter(Boolean);        // remove empty blocks
 
-  blocks.forEach(block => {
-    const lines = block.split("\n");
+  const questions = [];
+
+  for (const block of blocks) {
+    const lines = block
+      .split("\n")
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    // Minimum: question + 2 options
+    if (lines.length < 3) continue;
+
     const question = lines[0];
-    let options = [];
+    const options = [];
     let correctIndex = -1;
 
-    lines.slice(1).forEach((line, i) => {
-      if (line.includes("✅")) {
-        correctIndex = i;
-        options.push(line.replace("✅", "").slice(3).trim());
-      } else {
-        options.push(line.slice(3).trim());
-      }
-    });
+    for (let i = 1; i < lines.length; i++) {
+      let line = lines[i];
 
-    questions.push({ question, options, correctIndex });
-  });
+      // Remove option prefix like A. / (a) / 1.
+      line = line.replace(/^(\(?[a-dA-D0-9]\)?[.)-]?\s*)/, "");
+
+      if (!line) continue;
+
+      if (line.includes("✅")) {
+        correctIndex = options.length;
+        line = line.replace("✅", "").trim();
+      }
+
+      options.push(line);
+    }
+
+    // Telegram rules
+    if (
+      question &&
+      options.length >= 2 &&
+      correctIndex !== -1 &&
+      correctIndex < options.length
+    ) {
+      questions.push({
+        question,
+        options,
+        correctIndex
+      });
+    }
+  }
 
   return questions;
 };

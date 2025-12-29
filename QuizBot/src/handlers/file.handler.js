@@ -2,10 +2,6 @@ const parseTxt = require("../services/parser.service");
 const startTimedQuiz = require("../services/timedQuiz.service");
 
 module.exports = (bot) => {
-
-  // Temporary storage for pending quiz
-  const pendingQuiz = {};
-
   bot.on("document", async (msg) => {
     const chatId = msg.chat.id;
     const file = msg.document;
@@ -17,7 +13,7 @@ module.exports = (bot) => {
     const fileStream = await bot.getFileStream(file.file_id);
     let data = "";
 
-    fileStream.on("data", chunk => {
+    fileStream.on("data", (chunk) => {
       data += chunk.toString();
     });
 
@@ -26,46 +22,45 @@ module.exports = (bot) => {
       try {
         quiz = parseTxt(data);
       } catch {
-        return bot.sendMessage(chatId, "❌ Failed to parse quiz file");
+        return bot.sendMessage(chatId, "❌ Invalid quiz format");
       }
 
       if (!quiz.length) {
         return bot.sendMessage(chatId, "❌ No valid questions found");
       }
 
-      // Store quiz temporarily for this chat
-      pendingQuiz[chatId] = quiz;
-
       await bot.sendMessage(
         chatId,
-        "⏱️ Enter time per question (in seconds):\n\nExample: 10"
+        "⏱️ Enter time per question (in seconds):"
       );
+
+      const timerListener = (reply) => {
+        // 🔒 ONLY accept text message from same chat
+        if (
+          reply.chat.id !== chatId ||
+          !reply.text ||
+          reply.text.startsWith("/")
+        ) {
+          return;
+        }
+
+        const time = parseInt(reply.text.trim());
+
+        if (isNaN(time) || time <= 0) {
+          return bot.sendMessage(chatId, "❌ Please enter a valid number");
+        }
+
+        bot.removeListener("message", timerListener);
+
+        bot.sendMessage(
+          chatId,
+          `✅ Quiz starting\n⏳ ${time} seconds per question`
+        );
+
+        startTimedQuiz(bot, chatId, quiz, time);
+      };
+
+      bot.on("message", timerListener);
     });
-  });
-
-  // ✅ SAFE MESSAGE HANDLER
-  bot.on("message", (msg) => {
-    const chatId = msg.chat.id;
-
-    // Ignore bot messages
-    if (msg.from.is_bot) return;
-
-    // Only handle if quiz is pending
-    if (!pendingQuiz[chatId]) return;
-
-    const timePerQ = parseInt(msg.text);
-    if (isNaN(timePerQ) || timePerQ <= 0) {
-      return bot.sendMessage(chatId, "❌ Invalid time value. Enter a number.");
-    }
-
-    const quiz = pendingQuiz[chatId];
-    delete pendingQuiz[chatId]; // cleanup
-
-    bot.sendMessage(
-      chatId,
-      `✅ Quiz starting...\n⏳ Time per question: ${timePerQ} seconds`
-    );
-
-    startTimedQuiz(bot, chatId, quiz, timePerQ);
   });
 };

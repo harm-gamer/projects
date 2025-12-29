@@ -3,27 +3,37 @@ const sendResults = require("./result.service");
 const TICK = 1000; // 1 second
 
 module.exports = function startQuizEngine(bot) {
-  setInterval(() => {
+  // Store interval id to clear it later
+  let intervalId = setInterval(() => {
     const qz = bot.activeQuiz;
-    if (!qz || !qz.active) return;
 
-    // time running
+    // Defensive check: stop if no active quiz
+    if (!qz || !qz.active || !qz.quiz) {
+      clearInterval(intervalId);
+      return;
+    }
+
+    // Decrement timer
     qz.remainingTime--;
 
-    // time still left
+    // If time left, do nothing
     if (qz.remainingTime > 0) return;
 
-    // move to next question
+    // Move to next question
     qz.index++;
 
-    // quiz finished
+    // Quiz finished condition
     if (qz.index >= qz.quiz.length) {
       qz.active = false;
+
+      // Clear the interval here!
+      clearInterval(intervalId);
+
       sendResults(bot, qz);
       return;
     }
 
-    // send next question
+    // Send next question
     sendQuestion(bot, qz);
   }, TICK);
 };
@@ -31,6 +41,7 @@ module.exports = function startQuizEngine(bot) {
 function sendQuestion(bot, qz) {
   const q = qz.quiz[qz.index];
 
+  // Reset timer for next question
   qz.remainingTime = qz.timePerQuestion;
 
   bot.sendPoll(qz.chatId, q.question, q.options, {
